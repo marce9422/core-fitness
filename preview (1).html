@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escáner IA de Alimentos</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: radial-gradient(circle at top, #020202, #000000);
+  font-family: 'Inter', sans-serif;
+  color: #d1fae5;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 30px 15px;
+}
+
+.layout {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+  max-width: 900px;
+  align-items: flex-start;
+}
+
+.container {
+  width: 420px;
+  min-width: 420px;
+  padding: 25px;
+  border-radius: 20px;
+  background: rgba(0,0,0,0.8);
+  border: 1px solid #00ff8844;
+}
+
+h2 {
+  text-align: center;
+  color: #00ff88;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 15px;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+}
+
+/* TABS MODO */
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.mode-tab {
+  flex: 1;
+  padding: 9px;
+  border-radius: 9px;
+  border: 1px solid #00ff8833;
+  background: transparent;
+  color: #00ff8866;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+}
+.mode-tab.active {
+  background: rgba(0,255,136,0.1);
+  border-color: #00ff8888;
+  color: #00ff88;
+}
+.mode-tab:hover { border-color: #00ff8855; color: #00ff88aa; }
+
+/* BOTONES */
+.buttons { display: flex; gap: 10px; }
+button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #00ff8855;
+  background: transparent;
+  color: #00ff88;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  transition: background 0.2s;
+}
+button:hover { background: rgba(0,255,136,0.08); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* CÁMARA */
+.camera-wrap {
+  position: relative;
+  margin-top: 15px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #00ff8833;
+  background: #000;
+  display: none;
+}
+.camera-wrap.visible { display: block; }
+
+#cameraVideo {
+  width: 100%;
+  display: block;
+  border-radius: 12px;
+}
+
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Esquinas estilo scanner */
+.corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: #00ff88;
+  border-style: solid;
+  opacity: 0.7;
+}
+.corner-tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+.corner-tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+.corner-bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+.corner-br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+
+.scan-line {
+  position: absolute;
+  left: 12px; right: 12px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #00ff88, transparent);
+  animation: scanMove 2s linear infinite;
+  opacity: 0.5;
+}
+@keyframes scanMove {
+  0%   { top: 15%; }
+  50%  { top: 85%; }
+  100% { top: 15%; }
+}
+
+.camera-status {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #00ff8888;
+  letter-spacing: 1px;
+  font-family: 'Orbitron', sans-serif;
+  white-space: nowrap;
+}
+
+.camera-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+.btn-capture {
+  flex: 2;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #00ff8888;
+  background: rgba(0,255,136,0.08);
+  color: #00ff88;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  transition: background 0.2s;
+}
+.btn-capture:hover { background: rgba(0,255,136,0.15); }
+.btn-stop-cam {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #ff444433;
+  background: transparent;
+  color: #ff8888;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  transition: background 0.2s;
+}
+.btn-stop-cam:hover { background: rgba(255,50,50,0.08); }
+
+canvas { display: none; }
+
+/* PREVIEW */
+#preview img { width: 100%; margin-top: 15px; border-radius: 12px; border: 1px solid #00ff8833; }
+
+/* LOADER */
+.loader-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 20px 0; }
+.loader { width: 46px; height: 46px; border: 3px solid #022c22; border-top: 3px solid #00ff88; border-radius: 50%; animation: spin 1s linear infinite; }
+.loader-text { font-size: 12px; color: #00ff8877; letter-spacing: 1px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* RESULTADOS */
+.results { margin-top: 15px; padding: 15px; border-radius: 12px; background: rgba(0,0,0,0.6); border: 1px solid #00ff8833; }
+.results h4 { color: #00ff8899; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin: 12px 0 6px; }
+.macro-row { display: flex; justify-content: space-between; font-size: 12px; color: #d1fae5bb; margin-bottom: 4px; }
+.bar { height: 5px; background: #022c22; border-radius: 3px; margin-bottom: 10px; overflow: hidden; }
+.fill { height: 100%; background: linear-gradient(90deg,#00ff88,#00cc66); border-radius: 3px; }
+.item-row { font-size: 12px; padding: 4px 0; border-bottom: 1px solid #00ff8811; color: #d1fae5bb; }
+.calories-big { font-size: 28px; font-family: 'Orbitron', sans-serif; color: #00ff88; text-align: center; padding: 8px 0; }
+.calories-label { font-size: 10px; text-align: center; color: #00ff8866; letter-spacing: 2px; margin-bottom: 12px; }
+.error-box { margin-top: 15px; padding: 12px; border-radius: 10px; background: rgba(255,50,50,0.08); border: 1px solid #ff444433; color: #ff8888; font-size: 12px; }
+
+/* RECOMENDACIONES */
+.recom-box { margin-top: 14px; padding: 14px; border-radius: 12px; background: rgba(0,0,0,0.5); border: 1px solid #00ff8833; }
+.score-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.score-circle { width: 52px; height: 52px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; font-family: 'Orbitron', sans-serif; }
+.score-num { font-size: 18px; font-weight: 600; line-height: 1; }
+.score-of { font-size: 9px; opacity: 0.7; }
+.score-high { background: rgba(0,255,136,0.12); border: 1.5px solid #00ff8855; color: #00ff88; }
+.score-mid  { background: rgba(255,200,0,0.10); border: 1.5px solid #ffc80055; color: #ffc800; }
+.score-low  { background: rgba(255,80,80,0.10); border: 1.5px solid #ff505055; color: #ff8080; }
+.score-label { font-size: 13px; font-weight: 600; }
+.score-sub   { font-size: 11px; color: #d1fae566; margin-top: 2px; }
+.recom-section { margin-bottom: 12px; }
+.recom-section-title { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
+.recom-positive .recom-section-title { color: #00ff8877; }
+.recom-improve  .recom-section-title { color: #ffc80077; }
+.recom-tip      .recom-section-title { color: #80aaff77; }
+.recom-item { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: #d1fae5cc; margin-bottom: 5px; line-height: 1.5; }
+.recom-dot { flex-shrink: 0; margin-top: 4px; width: 6px; height: 6px; border-radius: 50%; }
+.dot-green  { background: #00ff88; }
+.dot-yellow { background: #ffc800; }
+.tip-box { background: rgba(100,160,255,0.06); border: 1px solid #4488ff33; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #a0c4ff; line-height: 1.5; }
+
+input[type="file"] { display: none; }
+
+/* HISTORIAL */
+.history-panel { flex: 1; border-radius: 20px; background: rgba(0,0,0,0.8); border: 1px solid #00ff8822; padding: 20px; min-width: 0; }
+.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.history-title { color: #00ff88; font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 2px; }
+.btn-clear { padding: 5px 10px; font-size: 10px; border-radius: 8px; border: 1px solid #ff444433; color: #ff8888; background: transparent; cursor: pointer; flex: none; letter-spacing: 0.5px; }
+.btn-clear:hover { background: rgba(255,50,50,0.08); }
+.history-empty { text-align: center; color: #00ff8833; font-size: 12px; margin-top: 40px; line-height: 2; }
+.history-item { background: rgba(0,255,136,0.03); border: 1px solid #00ff8822; border-radius: 12px; padding: 12px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.2s; }
+.history-item:hover { border-color: #00ff8855; }
+.history-item-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.history-thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; border: 1px solid #00ff8833; flex-shrink: 0; }
+.history-thumb-placeholder { width: 44px; height: 44px; border-radius: 8px; background: #011a10; border: 1px solid #00ff8822; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.history-meta { flex: 1; min-width: 0; }
+.history-cal { font-size: 18px; font-family: 'Orbitron', sans-serif; color: #00ff88; }
+.history-date { font-size: 10px; color: #00ff8855; margin-top: 2px; }
+.history-score { font-size: 10px; margin-top: 3px; }
+.history-macros { display: flex; gap: 8px; }
+.macro-pill { flex: 1; background: #011a10; border-radius: 6px; padding: 4px 6px; text-align: center; }
+.macro-pill-label { font-size: 9px; color: #00ff8855; letter-spacing: 0.5px; display: block; }
+.macro-pill-val { font-size: 12px; color: #00ff88; font-weight: 600; display: block; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <div class="container">
+    <h2>ESCÁNER IA DE ALIMENTOS</h2>
+
+    <!-- TABS DE MODO -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tabFile" onclick="setMode('file')">SUBIR ARCHIVO</button>
+      <button class="mode-tab" id="tabCam" onclick="setMode('camera')">CÁMARA EN VIVO</button>
+    </div>
+
+    <!-- MODO ARCHIVO -->
+    <div id="modeFile">
+      <input type="file" id="fileInput" accept="image/*">
+      <div class="buttons">
+        <button id="btnSubir" onclick="selectImage()">SUBIR</button>
+        <button id="btnAnalizar" onclick="analyzeImage()">ANALIZAR</button>
+        <button id="btnReiniciar" onclick="resetApp()">REINICIAR</button>
+      </div>
+    </div>
+
+    <!-- MODO CÁMARA -->
+    <div id="modeCam" style="display:none;">
+      <div class="camera-wrap" id="cameraWrap">
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <div class="camera-overlay">
+          <div class="corner corner-tl"></div>
+          <div class="corner corner-tr"></div>
+          <div class="corner corner-bl"></div>
+          <div class="corner corner-br"></div>
+          <div class="scan-line"></div>
+        </div>
+        <div class="camera-status" id="camStatus">CÁMARA ACTIVA</div>
+      </div>
+      <canvas id="snapCanvas"></canvas>
+      <div class="camera-buttons">
+        <button class="btn-capture" id="btnCapture" onclick="captureAndAnalyze()">CAPTURAR Y ANALIZAR</button>
+        <button class="btn-stop-cam" onclick="stopCamera()">DETENER</button>
+      </div>
+    </div>
+
+    <div id="preview"></div>
+    <div id="loading"></div>
+    <div id="results"></div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="history-panel">
+    <div class="history-header">
+      <span class="history-title">HISTORIAL</span>
+      <button class="btn-clear" onclick="clearHistory()">BORRAR TODO</button>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
+</div>
+
+<script>
+let imageFile = null;
+let imageDataUrl = null;
+let cameraStream = null;
+let currentMode = 'file';
+const MAX_HISTORY = 10;
+
+/* ── MODOS ── */
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('tabFile').classList.toggle('active', mode === 'file');
+  document.getElementById('tabCam').classList.toggle('active', mode === 'camera');
+  document.getElementById('modeFile').style.display = mode === 'file' ? '' : 'none';
+  document.getElementById('modeCam').style.display  = mode === 'camera' ? '' : 'none';
+
+  if (mode === 'camera') {
+    startCamera();
+  } else {
+    stopCamera();
+  }
+
+  resetVisuals();
+}
+
+/* ── CÁMARA ── */
+async function startCamera() {
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+    const video = document.getElementById('cameraVideo');
+    video.srcObject = cameraStream;
+    document.getElementById('cameraWrap').classList.add('visible');
+    document.getElementById('camStatus').textContent = 'CÁMARA ACTIVA';
+  } catch(err) {
+    showError('No se pudo acceder a la cámara. Verifica que el navegador tiene permiso.');
+  }
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  document.getElementById('cameraWrap').classList.remove('visible');
+}
+
+async function captureAndAnalyze() {
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.getElementById('snapCanvas');
+  if (!video.videoWidth) { showError('La cámara no está lista, espera un momento.'); return; }
+
+  // Capturar frame
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  imageDataUrl = dataUrl;
+
+  // Mostrar captura
+  document.getElementById('preview').innerHTML = `<img src="${dataUrl}" />`;
+  document.getElementById('camStatus').textContent = 'FOTO CAPTURADA';
+
+  // Convertir dataURL a File para enviar
+  const blob = await (await fetch(dataUrl)).blob();
+  imageFile = new File([blob], 'captura.jpg', { type: 'image/jpeg' });
+
+  analyzeImage();
+}
+
+/* ── ARCHIVO ── */
+function selectImage() { document.getElementById("fileInput").click(); }
+
+document.getElementById("fileInput").addEventListener("change", function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  imageFile = file;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    imageDataUrl = e.target.result;
+    document.getElementById("preview").innerHTML = `<img src="${imageDataUrl}" />`;
+    document.getElementById("results").innerHTML = "";
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ── ANÁLISIS ── */
+async function analyzeImage() {
+  if (!imageFile) { showError("Primero sube o captura una imagen"); return; }
+
+  setButtons(true);
+  document.getElementById("loading").innerHTML = `
+    <div class="loader-wrap">
+      <div class="loader"></div>
+      <span class="loader-text">ANALIZANDO CON IA...</span>
+    </div>`;
+  document.getElementById("results").innerHTML = "";
+
+  const formData = new FormData();
+  formData.append("imagen", imageFile);
+
+  try {
+    const res = await fetch("http://127.0.0.1:3000/analizar", { method: "POST", body: formData });
+    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || `Error ${res.status}`); }
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showResults(data);
+    saveToHistory(data, imageDataUrl);
+    if (currentMode === 'camera') document.getElementById('camStatus').textContent = 'CÁMARA ACTIVA';
+  } catch(err) {
+    showError(err.message.includes("fetch") ? "No se pudo conectar con el servidor" : "Error: " + err.message);
+  } finally {
+    document.getElementById("loading").innerHTML = "";
+    setButtons(false);
+  }
+}
+
+function scoreClass(n) {
+  if (n >= 7) return "score-high";
+  if (n >= 4) return "score-mid";
+  return "score-low";
+}
+
+function showResults(data) {
+  if (!data || !data.macros) { showError("No se pudo analizar la imagen"); return; }
+
+  const p = Math.min(data.macros.protein.percentage || 0, 100);
+  const c = Math.min(data.macros.carbs.percentage   || 0, 100);
+  const f = Math.min(data.macros.fat.percentage     || 0, 100);
+  const items = (data.items || []).map(i =>
+    `<div class="item-row">• ${i.name} — <strong>${i.calories} kcal</strong></div>`
+  ).join("");
+
+  let recomHtml = "";
+  if (data.recommendations) {
+    const r = data.recommendations;
+    const sc = scoreClass(r.score);
+    const positives = (r.positive || []).map(t =>
+      `<div class="recom-item"><div class="recom-dot dot-green"></div><span>${t}</span></div>`
+    ).join("");
+    const improves = (r.improve || []).map(t =>
+      `<div class="recom-item"><div class="recom-dot dot-yellow"></div><span>${t}</span></div>`
+    ).join("");
+    recomHtml = `
+      <div class="recom-box">
+        <div class="score-row">
+          <div class="score-circle ${sc}">
+            <span class="score-num">${r.score}</span>
+            <span class="score-of">/10</span>
+          </div>
+          <div>
+            <div class="score-label">${r.scoreLabel || "Análisis nutricional"}</div>
+            <div class="score-sub">Puntuación del plato</div>
+          </div>
+        </div>
+        <div class="recom-section recom-positive">
+          <div class="recom-section-title">Lo que está bien</div>${positives}
+        </div>
+        <div class="recom-section recom-improve">
+          <div class="recom-section-title">Cómo mejorar</div>${improves}
+        </div>
+        <div class="recom-section recom-tip">
+          <div class="recom-section-title">Consejo IA</div>
+          <div class="tip-box">${r.tip || ""}</div>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById("results").innerHTML = `
+    <div class="results">
+      <div class="calories-big">${data.totalCalories}</div>
+      <div class="calories-label">CALORÍAS TOTALES</div>
+      <h4>Macronutrientes</h4>
+      <div class="macro-row"><span>Proteína</span><span>${data.macros.protein.amount}g · ${p}%</span></div>
+      <div class="bar"><div class="fill" style="width:${p}%"></div></div>
+      <div class="macro-row"><span>Carbohidratos</span><span>${data.macros.carbs.amount}g · ${c}%</span></div>
+      <div class="bar"><div class="fill" style="width:${c}%"></div></div>
+      <div class="macro-row"><span>Grasas</span><span>${data.macros.fat.amount}g · ${f}%</span></div>
+      <div class="bar"><div class="fill" style="width:${f}%"></div></div>
+      <h4>Alimentos detectados</h4>
+      ${items}
+    </div>
+    ${recomHtml}`;
+}
+
+function showError(msg) {
+  document.getElementById("results").innerHTML = `<div class="error-box">⚠ ${msg}</div>`;
+}
+
+function setButtons(disabled) {
+  const ids = ["btnSubir","btnAnalizar","btnCapture"];
+  ids.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = disabled; });
+}
+
+function resetVisuals() {
+  imageFile = null; imageDataUrl = null;
+  document.getElementById("preview").innerHTML = "";
+  document.getElementById("results").innerHTML = "";
+  document.getElementById("loading").innerHTML = "";
+}
+
+function resetApp() {
+  document.getElementById("fileInput").value = "";
+  resetVisuals();
+}
+
+/* ── HISTORIAL ── */
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem("scanner_history") || "[]"); }
+  catch { return []; }
+}
+
+function saveToHistory(data, imgUrl) {
+  const history = getHistory();
+  history.unshift({
+    id: Date.now(),
+    date: new Date().toLocaleString("es-CO", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" }),
+    totalCalories: data.totalCalories,
+    protein: data.macros.protein.amount,
+    carbs: data.macros.carbs.amount,
+    fat: data.macros.fat.amount,
+    score: data.recommendations?.score || null,
+    scoreLabel: data.recommendations?.scoreLabel || null,
+    items: data.items || [],
+    recommendations: data.recommendations || null,
+    thumb: imgUrl
+  });
+  if (history.length > MAX_HISTORY) history.splice(MAX_HISTORY);
+  localStorage.setItem("scanner_history", JSON.stringify(history));
+  renderHistory();
+}
+
+function clearHistory() {
+  if (!confirm("¿Borrar todo el historial?")) return;
+  localStorage.removeItem("scanner_history");
+  renderHistory();
+}
+
+function loadFromHistory(id) {
+  const entry = getHistory().find(e => e.id === id);
+  if (!entry) return;
+  if (entry.thumb) document.getElementById("preview").innerHTML = `<img src="${entry.thumb}" />`;
+  showResults({
+    totalCalories: entry.totalCalories,
+    macros: {
+      protein: { amount: entry.protein, percentage: Math.round(entry.protein * 4 / entry.totalCalories * 100) },
+      carbs:   { amount: entry.carbs,   percentage: Math.round(entry.carbs   * 4 / entry.totalCalories * 100) },
+      fat:     { amount: entry.fat,     percentage: Math.round(entry.fat     * 9 / entry.totalCalories * 100) }
+    },
+    items: entry.items,
+    recommendations: entry.recommendations
+  });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function scoreColorStyle(score) {
+  if (!score) return "color:#00ff8855";
+  if (score >= 7) return "color:#00ff88";
+  if (score >= 4) return "color:#ffc800";
+  return "color:#ff8080";
+}
+
+function renderHistory() {
+  const history = getHistory();
+  const el = document.getElementById("historyList");
+  if (history.length === 0) {
+    el.innerHTML = `<div class="history-empty">Aún no hay escaneos<br>Analiza una imagen para<br>ver el historial aquí</div>`;
+    return;
+  }
+  el.innerHTML = history.map(entry => `
+    <div class="history-item" onclick="loadFromHistory(${entry.id})">
+      <div class="history-item-top">
+        ${entry.thumb ? `<img class="history-thumb" src="${entry.thumb}" />` : `<div class="history-thumb-placeholder">🍽</div>`}
+        <div class="history-meta">
+          <div class="history-cal">${entry.totalCalories} kcal</div>
+          <div class="history-date">${entry.date}</div>
+          ${entry.score ? `<div class="history-score" style="${scoreColorStyle(entry.score)}">★ ${entry.score}/10 — ${entry.scoreLabel || ""}</div>` : ""}
+        </div>
+      </div>
+      <div class="history-macros">
+        <div class="macro-pill"><span class="macro-pill-label">PROT</span><span class="macro-pill-val">${entry.protein}g</span></div>
+        <div class="macro-pill"><span class="macro-pill-label">CARBS</span><span class="macro-pill-val">${entry.carbs}g</span></div>
+        <div class="macro-pill"><span class="macro-pill-label">GRASAS</span><span class="macro-pill-val">${entry.fat}g</span></div>
+      </div>
+    </div>
+  `).join("");
+}
+
+renderHistory();
+</script>
+</body>
+</html>
